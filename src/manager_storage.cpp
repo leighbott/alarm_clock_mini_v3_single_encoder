@@ -23,6 +23,10 @@ static void load_alarm() {
     settings.snooze_duration_min = prefs.getUShort ("snz_dur",      settings.snooze_duration_min);
     settings.hold_dismiss_sec    = prefs.getUChar  ("hold_sec",     settings.hold_dismiss_sec);
     settings.repeat_mode         = prefs.getUChar  ("alm_rep",      settings.repeat_mode);
+    settings.alarm_auto_loud_min = prefs.getUChar  ("alm_loud",     settings.alarm_auto_loud_min);
+    settings.alarm_auto_dismiss_min = prefs.getUChar("alm_dism",    settings.alarm_auto_dismiss_min);
+    if (settings.alarm_auto_loud_min > 5) settings.alarm_auto_loud_min = 5;
+    if (settings.alarm_auto_dismiss_min > 5) settings.alarm_auto_dismiss_min = 5;
 
     String mp3 = prefs.getString("alm_mp3", settings.alarm_mp3);
     strncpy(settings.alarm_mp3, mp3.c_str(), sizeof(settings.alarm_mp3) - 1);
@@ -46,6 +50,8 @@ static void save_alarm() {
     prefs.putUShort("snz_dur",      settings.snooze_duration_min);
     prefs.putUChar ("hold_sec",     settings.hold_dismiss_sec);
     prefs.putUChar ("alm_rep",      settings.repeat_mode);
+    prefs.putUChar ("alm_loud",     settings.alarm_auto_loud_min);
+    prefs.putUChar ("alm_dism",     settings.alarm_auto_dismiss_min);
     prefs.putString("alm_mp3",      settings.alarm_mp3);
 }
 
@@ -89,6 +95,20 @@ static void save_leds() {
     prefs.putUChar ("led1_sat",  settings.led1_sat);
     prefs.putUShort("led2_hue",  settings.led2_hue);
     prefs.putUChar ("led2_sat",  settings.led2_sat);
+}
+
+static void load_other() {
+    settings.auto_led_off_min = prefs.getUShort("led_auto_off", settings.auto_led_off_min);
+    const uint16_t value = settings.auto_led_off_min;
+    if (value < 10 || value > 360 ||
+        (value > 60 && (value % 60) != 0) ||
+        (value <= 60 && (value % 10) != 0)) {
+        settings.auto_led_off_min = 10;
+    }
+}
+
+static void save_other() {
+    prefs.putUShort("led_auto_off", settings.auto_led_off_min);
 }
 
 static void load_home_page() {
@@ -145,6 +165,8 @@ void storage_manager_init() {
     settings.snooze_duration_min  = 9;
     settings.hold_dismiss_sec     = 3;
     settings.repeat_mode          = 0x80;   // once
+    settings.alarm_auto_loud_min  = 0;
+    settings.alarm_auto_dismiss_min = 0;
     settings.min_brightness_off   = false;
     settings.manual_brightness    = 128;
     settings.auto_brightness      = true;
@@ -159,6 +181,7 @@ void storage_manager_init() {
     settings.led1_sat             = 100;
     settings.led2_hue             = 0;
     settings.led2_sat             = 100;
+    settings.auto_led_off_min     = 10;
     for (uint8_t i = 0; i < UI_HOME_ELEMENT_COUNT; ++i) {
         settings.home_elements[i].font_size = 0;
         settings.home_elements[i].x = -1;
@@ -173,6 +196,7 @@ void storage_manager_init() {
     load_alarm();
     storage_manager_load_display();
     load_leds();
+    load_other();
     load_home_page();
 
     Serial.println("Storage: settings loaded from NVS");
@@ -186,6 +210,7 @@ void storage_manager_save_all() {
     save_alarm();
     save_display();
     save_leds();
+    save_other();
 }
 
 void storage_manager_save_alarm() {
@@ -198,4 +223,8 @@ void storage_manager_save_display() {
 
 void storage_manager_save_leds() {
     save_leds();
+}
+
+void storage_manager_save_other() {
+    save_other();
 }

@@ -244,6 +244,12 @@ void loop() {
     static bool hold_open_armed = false;
     const bool enc1_held = input_manager_button_held(ENC1);
     const bool enc2_held = input_manager_button_held(ENC2);
+    const bool enc1_pressed = input_manager_button_pressed(ENC1);
+    const bool enc2_pressed = input_manager_button_pressed(ENC2);
+    const bool user_input = (enc1_delta != 0) || (enc2_delta != 0) || enc1_pressed || enc2_pressed;
+    if (user_input) {
+        led_manager_note_user_input();
+    }
 
     static uint32_t last_alarm_check_ms = 0;
     if (millis() - last_alarm_check_ms >= 1000) {
@@ -274,10 +280,7 @@ void loop() {
             hold_open_armed = true;
         }
 
-        const bool home_input =
-            (enc1_delta != 0) || (enc2_delta != 0) ||
-            input_manager_button_pressed(ENC1) || input_manager_button_pressed(ENC2);
-        if (home_input) {
+        if (user_input) {
             brightness_manager_note_home_input();
         }
 
@@ -309,12 +312,13 @@ void loop() {
         settings_menu_handle_inputs(
             enc1_delta,
             enc2_delta,
-            input_manager_button_pressed(ENC1),
-            input_manager_button_pressed(ENC2));
+            enc1_pressed,
+            enc2_pressed);
     }
 
     brightness_manager_update();
     alarm_manager_update(enc1_held, enc2_held);
+    led_manager_update();
 
     if (hold_open_latched && !enc1_held && !enc2_held) {
         hold_open_latched = false;
@@ -333,4 +337,3 @@ void loop() {
 #endif
     delay(5);
 }
-

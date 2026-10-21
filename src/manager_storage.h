@@ -30,6 +30,8 @@ struct AppSettings {
     uint16_t snooze_duration_min;    // snooze duration, minutes
     uint8_t  hold_dismiss_sec;       // hold-to-dismiss duration, seconds
     uint8_t  repeat_mode;            // bit7=once, bit0..6=Sun..Sat
+    uint8_t  alarm_auto_loud_min;    // 0=off, otherwise minutes after alarm becomes active
+    uint8_t  alarm_auto_dismiss_min; // 0=off, minutes after Auto Loud
 
     // Display
     bool     min_brightness_off;     // true = screen off at minimum, false = value 1
@@ -48,6 +50,7 @@ struct AppSettings {
     uint8_t  led1_sat;               // 0–100 %
     uint16_t led2_hue;               // 0–360 degrees
     uint8_t  led2_sat;               // 0–100 %
+    uint16_t auto_led_off_min;       // inactivity timeout in minutes, 10–360
 
     // Home page customization
     UiElementConfig home_elements[UI_HOME_ELEMENT_COUNT];
@@ -64,5 +67,6 @@ void              storage_manager_save_alarm();        // alarm fields only
 void              storage_manager_load_display();      // display fields only
 void              storage_manager_save_display();      // display fields only
 void              storage_manager_save_leds();         // LED fields only
+void              storage_manager_save_other();        // Other-menu fields
 void              storage_manager_save_home_element(uint8_t index); // one home-page element
 void              storage_manager_save_home_background();

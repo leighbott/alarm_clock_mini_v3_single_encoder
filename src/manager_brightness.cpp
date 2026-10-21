@@ -62,6 +62,14 @@ static bool boost_is_active() {
     return (uint32_t)(millis() - g_last_home_input_ms) <= storage_manager_get().boost_duration_ms;
 }
 
+static uint8_t boosted_brightness(const AppSettings &settings) {
+    const uint8_t boost = clamp_with_minimum(settings.boost_brightness);
+    if (!settings.auto_brightness) return boost;
+
+    const uint8_t auto_brightness = map_ldr_to_brightness(g_smoothed_ldr);
+    return (auto_brightness > boost) ? auto_brightness : boost;
+}
+
 static uint8_t select_target_brightness() {
     const AppSettings &settings = storage_manager_get();
 
@@ -74,11 +82,11 @@ static uint8_t select_target_brightness() {
     }
 
     if (!settings_menu_is_home()) {
-        return clamp_with_minimum(settings.boost_brightness);
+        return boosted_brightness(settings);
     }
 
     if (boost_is_active()) {
-        return clamp_with_minimum(settings.boost_brightness);
+        return boosted_brightness(settings);
     }
 
     if (settings.auto_brightness) {

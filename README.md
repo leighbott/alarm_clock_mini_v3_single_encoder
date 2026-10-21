@@ -18,11 +18,14 @@ This is a feature-rich alarm clock designed for users who want precise control o
   - Configurable alarm start time and sound
 - **Quick alarm menu**: Fast access from home screen to set hour/minute without navigating full settings
 - **Snooze support**: Dismiss and delay alarm with user-defined intervals
+- **Auto Loud and Auto Dismiss**: Optionally raise both LED strips and volume after the alarm becomes active, then dismiss after a further configured delay
+- **Alarm countdown**: Home screen shows hours remaining for alarms under 12 hours away and a tomorrow notice for alarms within 24 hours
 
 ### 💡 Dual Independent LED Strips
 - **Two WS2812B RGB LED strips** (front and rear) with independent brightness/color control
 - **Sunrise ramp**: Both strips gradually brighten during alarm wake-up
 - **Manual control**: Adjust front LED from home screen; full control in settings
+- **Auto LED Off**: After the configurable inactivity interval (10 minutes to 6 hours), both strips fade to off over one second
 - **Persistence**: LED color/brightness preferences saved across power cycles
 - Uses LiteLED library with dedicated RMT channels for stable operation
 
@@ -34,6 +37,7 @@ This is a feature-rich alarm clock designed for users who want precise control o
 ### 📊 Environmental Monitoring
 - **Temperature, humidity, and pressure sensing** displayed on home screen
 - **Auto-brightness display**: Backlight brightness adjusts based on ambient light (LDR sensor)
+- **Brightness boost**: User activity boosts the display without dimming below a higher ambient auto-brightness level
 - **Manual brightness control**: User-selectable minimum/maximum levels and boost duration
 
 ### ⏱️ Real-Time Clock (RTC)

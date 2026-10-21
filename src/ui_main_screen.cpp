@@ -315,13 +315,24 @@ void ui_main_screen_update() {
             lv_label_set_text(lbl_alarm, buf);
             if (!g_alarm_color_customized) lv_obj_set_style_text_color(lbl_alarm, COL_ACCENT, 0);
 
-            if (!is_snoozed && !is_same_calendar_day(now, next_alarm)) {
+            uint32_t diff_seconds = 0;
+            if (next_alarm.unixtime() > now.unixtime()) {
+                diff_seconds = next_alarm.unixtime() - now.unixtime();
+            }
+            if (diff_seconds < (60U * 60U)) {
+                uint32_t minutes = (diff_seconds + 59U) / 60U;
+                if (minutes == 0) minutes = 1;
+                if (minutes == 1U) snprintf(buf, sizeof(buf), "in 1 minute");
+                else snprintf(buf, sizeof(buf), "in %lu minutes", (unsigned long)minutes);
+            } else if (diff_seconds < (12U * 60U * 60U)) {
+                uint32_t hours = diff_seconds / (60U * 60U);
+                if (hours == 1U) snprintf(buf, sizeof(buf), "1 hour");
+                else snprintf(buf, sizeof(buf), "%lu hours", (unsigned long)hours);
+            } else if (diff_seconds <= (24U * 60U * 60U)) {
+                snprintf(buf, sizeof(buf), "Tomorrow");
+            } else if (!is_snoozed && !is_same_calendar_day(now, next_alarm)) {
                 snprintf(buf, sizeof(buf), "on %s", day_name(next_alarm.dayOfTheWeek()));
             } else {
-                uint32_t diff_seconds = 0;
-                if (next_alarm.unixtime() > now.unixtime()) {
-                    diff_seconds = next_alarm.unixtime() - now.unixtime();
-                }
                 const uint32_t diff_minutes = (diff_seconds + 59U) / 60U;
                 const uint32_t h = diff_minutes / 60U;
                 const uint32_t m = diff_minutes % 60U;
@@ -499,5 +510,3 @@ void ui_main_screen_apply_customization() {
         ui_main_screen_set_element_color(i, e.color_rgb565);
     }
 }
-
-

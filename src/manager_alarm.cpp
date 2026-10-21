@@ -28,6 +28,8 @@ static uint8_t g_base_led_back_sat = 100;
 
 static uint32_t g_ramp_start_ms = 0;
 static uint32_t g_active_start_ms = 0;
+static uint32_t g_auto_loud_start_ms = 0;
+static bool g_auto_loud_triggered = false;
 static uint32_t g_last_match_stamp = 0;
 static uint32_t g_snooze_until_epoch = 0;
 static constexpr uint32_t TAP_SNOOZE_MS = 300U;
@@ -220,6 +222,8 @@ static void stop_alarm(bool return_home, bool leave_back_at_end) {
     g_flow_end_volume = 0;
     g_flow_end_led = 0;
     g_audio_started = false;
+    g_auto_loud_triggered = false;
+    g_auto_loud_start_ms = 0;
     g_outputs_paused_for_hold = false;
     g_any_btn_prev_held = false;
     g_hold_dismiss_latched = false;
@@ -241,6 +245,8 @@ static void start_alarm_flow(uint32_t target_epoch, bool skip_ramp) {
     g_alarm_target_epoch = target_epoch;
     g_ramp_start_ms = millis();
     g_active_start_ms = 0;
+    g_auto_loud_start_ms = 0;
+    g_auto_loud_triggered = false;
     g_flow_vol_ramp_min = skip_ramp ? 0 : clamp_u16(s.alarm_vol_ramp_min, 0, 30);
     g_flow_sun_ramp_min = skip_ramp ? 0 : clamp_u16(s.alarm_sun_ramp_min, 0, 30);
     g_flow_end_volume = clamp_u8(s.alarm_volume, 0, 100);
@@ -419,9 +425,37 @@ void alarm_manager_update(bool enc1_held, bool enc2_held) {
 
         apply_alarm_outputs(audio_active, vol_now, led_active, led_now, g_outputs_paused_for_hold);
 
-        if (g_active_start_ms != 0 && (now_ms - g_active_start_ms) >= (5U * 60U * 1000U)) {
-            stop_alarm(true, false);
-            return;
+        if (g_active_start_ms != 0) {
+            if (!g_auto_loud_triggered && s.alarm_auto_loud_min > 0 &&
+                (now_ms - g_active_start_ms) >= ((uint32_t)s.alarm_auto_loud_min * 60U * 1000U)) {
+                g_auto_loud_triggered = true;
+                g_auto_loud_start_ms = now_ms;
+            }
+
+            if (g_auto_loud_triggered) {
+                set_back_output(true, 255);
+                set_front_output(!g_outputs_paused_for_hold, g_outputs_paused_for_hold ? 0 : 255);
+                audio_manager_set_volume(g_outputs_paused_for_hold ? 0 : 100);
+
+                if (s.alarm_auto_dismiss_min > 0 &&
+                    (now_ms - g_auto_loud_start_ms) >= ((uint32_t)s.alarm_auto_dismiss_min * 60U * 1000U)) {
+                    stop_alarm(true, false);
+                    return;
+                }
+            }
+
+            uint32_t active_timeout_ms = 5U * 60U * 1000U;
+            if (s.alarm_auto_loud_min > 0) {
+                active_timeout_ms = ((uint32_t)s.alarm_auto_loud_min + 5U) * 60U * 1000U;
+                if (s.alarm_auto_dismiss_min > 0) {
+                    active_timeout_ms = ((uint32_t)s.alarm_auto_loud_min +
+                                         (uint32_t)s.alarm_auto_dismiss_min) * 60U * 1000U;
+                }
+            }
+            if ((now_ms - g_active_start_ms) >= active_timeout_ms) {
+                stop_alarm(true, false);
+                return;
+            }
         }
     }
 

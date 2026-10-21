@@ -13,6 +13,10 @@ void    led_manager_init(uint8_t front_brightness, uint8_t back_brightness,
                          uint16_t front_hue, uint8_t front_sat,
                          uint16_t back_hue, uint8_t back_sat);
 
+// Call for every detected user input and from the main loop to service Auto LED Off.
+void    led_manager_note_user_input();
+void    led_manager_update();
+
 // Brightness: 0–255
 void    led_manager_set_front(uint8_t brightness);
 void    led_manager_set_back(uint8_t brightness);

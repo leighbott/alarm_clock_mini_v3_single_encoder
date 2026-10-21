@@ -1,4 +1,5 @@
 #include "manager_led.h"
+#include "manager_storage.h"
 #include "pins_config.h"
 #include <Arduino.h>
 #include <LiteLED.h>
@@ -22,6 +23,14 @@ static uint16_t front_hue        = 0;
 static uint8_t  front_sat        = 100;
 static uint16_t back_hue         = 0;
 static uint8_t  back_sat         = 100;
+static uint32_t last_user_input_ms = 0;
+static uint32_t fade_start_ms = 0;
+static uint8_t fade_front_start = 0;
+static uint8_t fade_back_start = 0;
+static bool fade_active = false;
+static bool auto_off_expired = false;
+
+static constexpr uint32_t LED_FADE_DURATION_MS = 1000U;
 
 static uint8_t gamma_correct(uint8_t brightness) {
     if (brightness == 0) return 0;
@@ -110,6 +119,54 @@ void led_manager_init(uint8_t init_front_brightness, uint8_t init_back_brightnes
     Serial.println("LED: OK");
 }
 
+void led_manager_note_user_input() {
+    last_user_input_ms = millis();
+    fade_active = false;
+    auto_off_expired = false;
+}
+
+void led_manager_update() {
+    const uint16_t timeout_min = storage_manager_get().auto_led_off_min;
+    if (timeout_min == 0 || auto_off_expired) return;
+
+    const uint32_t now = millis();
+    if (!fade_active) {
+        const uint32_t timeout_ms = (uint32_t)timeout_min * 60U * 1000U;
+        if ((uint32_t)(now - last_user_input_ms) < timeout_ms) return;
+        if (!front_on && !back_on) {
+            auto_off_expired = true;
+            return;
+        }
+        fade_start_ms = now;
+        fade_front_start = front_brightness;
+        fade_back_start = back_brightness;
+        fade_active = true;
+    }
+
+    const uint32_t elapsed = now - fade_start_ms;
+    if (elapsed >= LED_FADE_DURATION_MS) {
+        front_brightness = 0;
+        back_brightness = 0;
+        front_on = false;
+        back_on = false;
+        apply_front();
+        apply_back();
+        fade_active = false;
+        auto_off_expired = true;
+        return;
+    }
+
+    const uint32_t remaining = LED_FADE_DURATION_MS - elapsed;
+    if (front_on) {
+        front_brightness = (uint8_t)(((uint32_t)fade_front_start * remaining) / LED_FADE_DURATION_MS);
+        apply_front();
+    }
+    if (back_on) {
+        back_brightness = (uint8_t)(((uint32_t)fade_back_start * remaining) / LED_FADE_DURATION_MS);
+        apply_back();
+    }
+}
+
 
 void led_manager_set_front(uint8_t brightness) {
     front_brightness = brightness;
@@ -169,4 +226,3 @@ void led_manager_set_hsv(LedStrip strip, uint16_t hue, uint8_t sat, uint8_t brig
         apply_back();
     }
 }
-

@@ -16,9 +16,9 @@ static constexpr int HEADER_H = 34;
 static constexpr int CONTENT_Y = 36;
 static constexpr int CONTENT_H = DISP_H - CONTENT_Y;
 
-static constexpr uint8_t FIELD_COUNT = 12;
+static constexpr uint8_t FIELD_COUNT = 14;
 static constexpr uint8_t VISIBLE_COLS = 4;
-static constexpr uint8_t LEVEL_COUNT = FIELD_COUNT / VISIBLE_COLS;
+static constexpr uint8_t LEVEL_COUNT = (FIELD_COUNT + VISIBLE_COLS - 1) / VISIBLE_COLS;
 static constexpr uint8_t REPEAT_ONCE = 0x80;
 
 static constexpr int PAGE_DOT_W = 16;
@@ -49,6 +49,8 @@ enum class AlarmField : uint8_t {
     SNOOZE_DURATION,
     HOLD_TO_DISMISS,
     REPEAT,
+    AUTO_LOUD,
+    AUTO_DISMISS,
 };
 
 struct UiAlarmState {
@@ -63,6 +65,8 @@ struct UiAlarmState {
     uint8_t snooze_min;
     uint8_t hold_sec;
     uint8_t repeat_mask;
+    uint8_t auto_loud_min;
+    uint8_t auto_dismiss_min;
     char sound_path[64];
     AlarmField selected;
 };
@@ -122,7 +126,7 @@ static uint32_t g_last_end_vol_beep_ms = 0;
 static constexpr uint32_t END_VOL_BEEP_MIN_INTERVAL_MS = 200;
 
 static UiAlarmState g_state = {
-    false, 7, 0, 80, 78, 5, 20, true, 9, 3, REPEAT_ONCE, "/test.mp3", AlarmField::ENABLED
+    false, 7, 0, 80, 78, 5, 20, true, 9, 3, REPEAT_ONCE, 0, 0, "/test.mp3", AlarmField::ENABLED
 };
 
 static uint8_t g_window_start = 0;
@@ -430,6 +434,8 @@ static void clamp_state() {
     g_state.sun_ramp_min = clamp_u8(g_state.sun_ramp_min, 0, 30);
     g_state.snooze_min = clamp_u8(g_state.snooze_min, 1, 30);
     g_state.hold_sec = clamp_u8(g_state.hold_sec, 1, 10);
+    g_state.auto_loud_min = clamp_u8(g_state.auto_loud_min, 0, 5);
+    g_state.auto_dismiss_min = clamp_u8(g_state.auto_dismiss_min, 0, 5);
     if (g_state.sound_path[0] == '\0') {
         copy_str(g_state.sound_path, sizeof(g_state.sound_path), "/test.mp3");
     }
@@ -452,7 +458,8 @@ static const char *field_title(uint8_t idx) {
     static const char *titles[FIELD_COUNT] = {
         "Alarm", "Hour", "Minute", "Sound",
         "End\nVol lvl", "End\nSun lvl", "Vol\nRamp", "Sun\nRamp",
-        "Snooze", "Snooze\nDuration", "Hold to\nDismiss", "Repeat"
+        "Snooze", "Snooze\nDuration", "Hold to\nDismiss", "Repeat",
+        "Auto\nLoud", "Auto\nDismiss"
     };
     return titles[idx];
 }
@@ -522,6 +529,14 @@ static void field_value_text(uint8_t idx, char *buf, size_t len, lv_color_t &col
         case AlarmField::REPEAT:
             std::snprintf(buf, len, "Select");
             color = lv_color_make(0x6D, 0xC4, 0xFF);
+            break;
+        case AlarmField::AUTO_LOUD:
+            if (g_state.auto_loud_min == 0) std::snprintf(buf, len, "Off");
+            else std::snprintf(buf, len, "%u min", (unsigned)g_state.auto_loud_min);
+            break;
+        case AlarmField::AUTO_DISMISS:
+            if (g_state.auto_dismiss_min == 0) std::snprintf(buf, len, "Off");
+            else std::snprintf(buf, len, "%u min", (unsigned)g_state.auto_dismiss_min);
             break;
     }
 }
@@ -616,6 +631,8 @@ static void save_state() {
     s.snooze_duration_min = g_state.snooze_min;
     s.hold_dismiss_sec = g_state.hold_sec;
     s.repeat_mode = g_state.repeat_mask;
+    s.alarm_auto_loud_min = g_state.auto_loud_min;
+    s.alarm_auto_dismiss_min = g_state.auto_dismiss_min;
 
     copy_str(s.alarm_mp3, sizeof(s.alarm_mp3), g_state.sound_path);
 
@@ -688,6 +705,20 @@ static void adjust_selected_field(int32_t delta) {
         }
         case AlarmField::REPEAT:
             break;
+        case AlarmField::AUTO_LOUD: {
+            int16_t v = (int16_t)g_state.auto_loud_min + (int16_t)delta;
+            if (v < 0) v = 0;
+            if (v > 5) v = 5;
+            g_state.auto_loud_min = (uint8_t)v;
+            break;
+        }
+        case AlarmField::AUTO_DISMISS: {
+            int16_t v = (int16_t)g_state.auto_dismiss_min + (int16_t)delta;
+            if (v < 0) v = 0;
+            if (v > 5) v = 5;
+            g_state.auto_dismiss_min = (uint8_t)v;
+            break;
+        }
     }
 }
 
@@ -698,6 +729,13 @@ static void render_fields() {
     for (uint8_t slot = 0; slot < VISIBLE_COLS; ++slot) {
         const uint8_t idx = (uint8_t)(g_window_start + slot);
         if (!g_title_labels[slot] || !g_value_labels[slot] || !g_value_arcs[slot]) continue;
+        if (idx >= FIELD_COUNT) {
+            lv_label_set_text(g_title_labels[slot], "");
+            lv_label_set_text(g_value_labels[slot], "");
+            lv_obj_set_hidden(g_value_arcs[slot], true);
+            lv_obj_set_style_bg_opa(g_value_widgets[slot], LV_OPA_TRANSP, LV_PART_MAIN);
+            continue;
+        }
 
         const char *title = field_title(idx);
         char title_buf[32];
@@ -711,6 +749,7 @@ static void render_fields() {
         const AlarmField field = (AlarmField)idx;
         const bool use_arc = field_uses_arc(field);
         lv_obj_set_hidden(g_value_arcs[slot], !use_arc);
+        lv_obj_set_style_bg_opa(g_value_widgets[slot], LV_OPA_COVER, LV_PART_MAIN);
 
         lv_color_t shell_color = lv_color_make(0x16, 0x16, 0x16);
         if (field == AlarmField::ENABLED) {
@@ -1259,6 +1298,8 @@ void ui_alarm_on_enter() {
     g_state.snooze_min = (uint8_t)((s.snooze_duration_min > 30) ? 30 : s.snooze_duration_min);
     g_state.hold_sec = s.hold_dismiss_sec;
     g_state.repeat_mask = s.repeat_mode;
+    g_state.auto_loud_min = clamp_u8(s.alarm_auto_loud_min, 0, 5);
+    g_state.auto_dismiss_min = clamp_u8(s.alarm_auto_dismiss_min, 0, 5);
     copy_str(g_state.sound_path,
              sizeof(g_state.sound_path),
              (s.alarm_mp3[0] != '\0') ? s.alarm_mp3 : "/test.mp3");
